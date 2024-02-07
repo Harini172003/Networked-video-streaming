@@ -1,0 +1,58 @@
+import java.io.*;
+import java.net.*;
+
+public class Client {
+    private static final String SERVER_IP = "localhost";
+    private static final int SERVER_PORT = 12345;
+
+    public static void main(String[] args) {
+        try {
+            try (Socket socket = new Socket(SERVER_IP, SERVER_PORT)) {
+                System.out.println("Connected to server: " + socket.getInetAddress());
+
+                ObjectOutputStream out;
+                try (ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+                    out = new ObjectOutputStream(socket.getOutputStream());
+                    // Receive the list of available videos from the server
+                    String[] videoNames = (String[]) in.readObject();
+                    System.out.println("Available videos:");
+                    for (int i = 0; i < videoNames.length; i++) {
+                        System.out.println((i + 1) + ". " + videoNames[i]);
+                    }   BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+                    System.out.print("Enter the number of clients: ");
+                    int numClients = Integer.parseInt(reader.readLine());
+                    for (int i = 0; i < numClients; i++) {
+                        System.out.println("\nClient " + (i + 1) + ":");
+                        System.out.print("Enter the video number to play: ");
+                        int selectedVideo = Integer.parseInt(reader.readLine()) - 1;
+
+                        // Send the selected video to the server
+                        out.writeInt(selectedVideo);
+                        out.flush();
+
+                        // Receive the packet count from the server
+                        int packetCount = in.readInt();
+                        System.out.println("Receiving video packets for Client " + (i + 1) + "...");
+
+                        // Receive and save the video from the server
+                        File videoFile = new File("received_video_" + (i + 1) + ".mp4");
+                        int packetsReceived;
+                        try (FileOutputStream fileOutputStream = new FileOutputStream(videoFile)) {
+                            byte[] buffer = new byte[1024];
+                            int bytesRead;
+                            packetsReceived = 0;
+                            while ((bytesRead = in.read(buffer)) != -1) {
+                                fileOutputStream.write(buffer, 0, bytesRead);
+                                packetsReceived++;
+                            }
+                        }
+                        System.out.println("Video received and saved successfully for Client " + (i + 1) + "!");
+                        System.out.println("Number of data packets received: " + packetsReceived + "/" + packetCount);
+                    }
+                }
+                out.close();
+            }
+        } catch (IOException | ClassNotFoundException e) {
+        }
+    }
+}

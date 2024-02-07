@@ -1,0 +1,86 @@
+import java.io.*;
+import java.net.*;
+
+public class Server {
+    private static final int SERVER_PORT = 12345;
+
+    public static void main(String[] args) {
+        try {
+            ServerSocket serverSocket = new ServerSocket(SERVER_PORT);
+            System.out.println("Server started and listening on port " + SERVER_PORT);
+
+            // Preparing the list of available videos
+            String[] videoNames = {
+                    "C:/Users/Ravichandran/IdeaProjects/networkproject/video_file/_Biji_.mp4",
+                    "C:/Users/Ravichandran/IdeaProjects/networkproject/video_file/_Extinguished_.mp4",
+                    "C:/Users/Ravichandran/IdeaProjects/networkproject/video_file/_Wedding cake_.mp4"
+            };
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Client connected: " + clientSocket.getInetAddress());
+
+                Thread clientThread = new Thread(new ClientHandler(clientSocket, videoNames));
+                clientThread.start();
+            }
+        } catch (IOException e) {
+        }
+    }
+
+    private static class ClientHandler implements Runnable {
+        private final Socket clientSocket;
+        private final String[] videoNames;
+
+        public ClientHandler(Socket socket, String[] videoNames) {
+            this.clientSocket = socket;
+            this.videoNames = videoNames;
+        }
+
+        @Override
+        public void run() {
+            try {
+                ObjectInputStream in;
+                try (ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream())) {
+                    in = new ObjectInputStream(clientSocket.getInputStream());
+                    // Send the list of available videos to the client
+                    out.writeObject(videoNames);
+                    out.flush();
+                    // Receive the selected video from the client
+                    int selectedVideo = in.readInt();
+                    if (selectedVideo >= 0 && selectedVideo < videoNames.length) {
+                        String videoName = videoNames[selectedVideo];
+                        File videoFile = new File(videoName);
+
+                        if (videoFile.exists()) {
+                            int packetCount;
+                            int packetsSent;
+                            try (FileInputStream fileInputStream = new FileInputStream(videoFile)) {
+                                long fileSize = videoFile.length();
+                                packetCount = 1 + (int) (fileSize / 1024); // Calculate the packet count
+                                // Send the packet count to the client
+                                out.writeInt(packetCount);
+                                out.flush();
+                                byte[] buffer = new byte[1024];
+                                int bytesRead;
+                                packetsSent = 0;
+                                while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                                    out.write(buffer, 0, bytesRead);
+                                    packetsSent++;
+                                }
+                            }
+                            System.out.println("Video sent successfully for Client " + clientSocket.getInetAddress());
+                            System.out.println("Number of data packets sent: " + packetsSent + "/" + packetCount);
+                        } else {
+                            System.out.println("Video file not found.");
+                        }
+                    } else {
+                        System.out.println("Invalid video selection.");
+                    }
+                }
+                in.close();
+                clientSocket.close();
+            } catch (IOException e) {
+            }
+        }
+    }
+}
